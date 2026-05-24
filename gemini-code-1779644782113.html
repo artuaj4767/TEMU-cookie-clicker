@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Station v5</title>
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-panel: #111827;
+            --border: #1f2937;
+            --accent: #10b981;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        main {
+            max-width: 900px;
+            width: 100%;
+            margin: 40px auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+            flex: 1;
+        }
+
+        .grid-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .game-card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .game-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+
+        .game-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        .game-name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* Fullscreen Game Player Overlay */
+        .player-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(3, 7, 18, 0.95);
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .player-bar {
+            width: 90%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .close-btn {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        canvas {
+            background-color: #000;
+            border: 4px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-text">⚡ StaticArcade v5</div>
+        <div style="font-size: 12px; color: var(--text-muted);">Build: 5.0.42 (Stable)</div>
+    </header>
+
+    <main>
+        <div class="grid-title">Available Offline Core Modules</div>
+        <div class="game-grid">
+            <div class="game-card" onclick="launchGame('snake')">
+                <div class="game-icon">🐍</div>
+                <div class="game-name">Snake Retro</div>
+            </div>
+            <div class="game-card" onclick="launchGame('ping')">
+                <div class="game-icon">🏓</div>
+                <div class="game-name">Cyber Pong</div>
+            </div>
+        </div>
+    </main>
+
+    <div class="player-overlay" id="playerWindow">
+        <div class="player-bar">
+            <div id="gameTitle" style="font-weight: bold;">Loading Module...</div>
+            <button class="close-btn" onclick="closeGame()">✕ Close Game</button>
+        </div>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let gameLoopId = null;
+        let gameActive = false;
+
+        function launchGame(gameType) {
+            document.getElementById('playerWindow').style.display = 'flex';
+            gameActive = true;
+            
+            if (gameLoopId) clearInterval(gameLoopId);
+            window.onkeydown = null; // Reset keys
+
+            if (gameType === 'snake') {
+                startSnake();
+            } else if (gameType === 'ping') {
+                startPong();
+            }
+        }
+
+        function closeGame() {
+            gameActive = false;
+            document.getElementById('playerWindow').style.display = 'none';
+            if (gameLoopId) clearInterval(gameLoopId);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // --- SNAKE ARCADE GAME ENGINE ---
+        function startSnake() {
+            document.getElementById('gameTitle').innerText = "Playing: Snake Retro";
+            let snake = [{x: 200, y: 200}];
+            let dx = 20, dy = 0;
+            let foodX = 100, foodY = 100;
+
+            window.onkeydown = function(e) {
+                if (e.key === 'ArrowLeft' && dx === 0) { dx = -20; dy = 0; }
+                if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -20; }
+                if (e.key === 'ArrowRight' && dx === 0) { dx = 20; dy = 0; }
+                if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = 20; }
+            };
+
+            gameLoopId = setInterval(() => {
+                if (!gameActive) return;
+                
+                // Advance Snake position
+                const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                
+                // Border Wrap-around system
+                if (head.x < 0) head.x = canvas.width - 20;
+                if (head.x >= canvas.width) head.x = 0;
+                if (head.y < 0) head.y = canvas.height - 20;
+                if (head.y >= canvas.height) head.y = 0;
+
+                snake.unshift(head);
+
+                // Check food collision
+                if (head.x === foodX && head.y === foodY) {
+                    foodX = Math.floor(Math.random() * 20) * 20;
+                    foodY = Math.floor(Math.random() * 20) * 20;
+                } else {
+                    snake.pop();
+                }
+
+                // Render loop
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#ef4444'; // Food
+                ctx.fillRect(foodX, foodY, 18, 18);
+
+                ctx.fillStyle = '#10b981'; // Snake
+                snake.forEach(part => ctx.fillRect(part.x, part.y, 18, 18));
+            }, 100);
+        }
+
+        // --- CYBER PONG GAME ENGINE ---
+        function startPong() {
+            document.getElementById('gameTitle').innerText = "Playing: Cyber Pong";
+            let paddleY = 150, ballX = 200, ballY = 200, ballDX = 4, ballDY = 4;
+            let cpuY = 150;
+
+            window.onkeydown = function(e) {
+                if (e.key === 'ArrowUp' && paddleY > 0) paddleY -= 25;
+                if (e.key === 'ArrowDown' && paddleY < canvas.height - 80) paddleY += 25;
+            };
+
+            gameLoopId = setInterval(() => {
+                if (!gameActive) return;
+
+                ballX += ballDX;
+                ballY += ballDY;
+
+                // Simple AI Tracking
+                if (cpuY + 40 < ballY && cpuY < canvas.height - 80) cpuY += 3;
+                else if (cpuY + 40 > ballY && cpuY > 0) cpuY -= 3;
+
+                // Floor/Ceiling collision
+                if (ballY <= 0 || ballY >= canvas.height - 12) ballDY = -ballDY;
+
+                // Paddle collision checks
+                if (ballX <= 25 && ballY >= paddleY && ballY <= paddleY + 80) { ballDX = -ballDX; ballX = 26; }
+                if (ballX >= canvas.width - 35 && ballY >= cpuY && ballY <= cpuY + 80) { ballDX = -ballDX; ballX = canvas.width - 36; }
+
+                // Reset on score
+                if (ballX < 0 || ballX > canvas.width) { ballX = 200; ballY = 200; ballDX = -ballDX; }
+
+                // Render Frame
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(15, paddleY, 10, 80); // Player
+                ctx.fillRect(canvas.width - 25, cpuY, 10, 80); // CPU
+                ctx.fillRect(ballX, ballY, 12, 12); // Ball
+            }, 1000 / 60);
+        }
+    </script>
+</body>
+</html>
